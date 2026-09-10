@@ -1,0 +1,22 @@
+# Example strategy parameters, keyed by instrument. The Macro Regime Engine
+# (Step 6) applies overrides on top of these base values per regime state.
+
+grid:
+  GOLDM25DECFUT:
+    atr_period: 14
+    atr_spacing_multiplier: 1.5
+    max_pyramid_levels: 5
+    position_cap_lots: 20
+
+stop_and_reverse:
+  NIFTY25DECFUT:
+    atr_period: 14
+    atr_stop_multiplier: 2.0
+    position_cap_lots: 10
+
+regime_overrides:
+  HIGH_VOL:
+    atr_spacing_multiplier: 2.5   # widen grid spacing in high volatility
+    position_cap_lots: 10          # tighten caps
+  CIRCUIT_HALT:
+    position_cap_lots: 0           # no new positions; kill switch territory

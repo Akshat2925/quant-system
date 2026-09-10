@@ -1,0 +1,25 @@
+# Example instrument configuration — copy to instruments.yaml and fill in
+# real instrument_tokens synced from the Kite contract master (Step 7).
+# This file is the config-driven source strategies read from; nothing
+# instrument-specific should be hardcoded in strategy or execution code.
+
+instruments:
+  - tradingsymbol: GOLDM25DECFUT
+    exchange: MCX
+    contract_type: FUTURE
+    instrument_token: 0            # placeholder — sync from Kite contract master
+    lot_size: 100
+    tick_size: "1"
+    price_quotation_basis: per_10_grams
+    expiry: "2025-12-05"
+    underlying: GOLD
+
+  - tradingsymbol: NIFTY25DECFUT
+    exchange: NFO
+    contract_type: FUTURE
+    instrument_token: 0
+    lot_size: 25
+    tick_size: "0.05"
+    price_quotation_basis: per_unit
+    expiry: "2025-12-30"
+    underlying: NIFTY
