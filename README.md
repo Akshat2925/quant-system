@@ -1,7 +1,15 @@
 # quant-system
 
-Grid / Stop-and-Reverse execution system for MCX/NSE, built on Zerodha Kite
-Connect.
+[![CI](https://github.com/Akshat2925/quant-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Akshat2925/quant-system/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen.svg)](https://github.com/Akshat2925/quant-system/actions)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
+**Grid / Stop-and-Reverse execution system for MCX/NSE, built on Zerodha Kite Connect.**
+
+> Numerical discipline: every P&L figure is computed in `Decimal` — never `float`.
+> Backtest reconciles to live by construction, not by hope.
 
 ## Status
 

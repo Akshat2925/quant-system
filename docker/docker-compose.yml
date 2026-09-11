@@ -1,0 +1,87 @@
+version: "3.9"
+
+services:
+  # ── TimescaleDB (Postgres + time-series extension) ──────────────────────
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: quant_db
+    environment:
+      POSTGRES_USER: quant
+      POSTGRES_PASSWORD: quant_secret
+      POSTGRES_DB: quant_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quant"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (order state cache, pub/sub for fill events) ──────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: quant_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Quant System API (FastAPI) ───────────────────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: quant_api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://quant:quant_secret@db:5432/quant_system
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../config:/app/config:ro
+    command: uvicorn quant_system.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Streamlit Dashboard ──────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: quant_dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://quant:quant_secret@db:5432/quant_system
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    command: streamlit run quant_system/dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+
+  # ── Grafana (monitoring) ─────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: quant_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+
+volumes:
+  pgdata:
+  grafana_data:
