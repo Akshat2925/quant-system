@@ -8,4 +8,4 @@ Versioning scheme: Semantic Versioning (semver.org)
   3.0.0          only after all stages pass + dry-run test period done
 """
 
-__version__ = "3.0.0-alpha.1"
+__version__ = "3.0.0-alpha.2"

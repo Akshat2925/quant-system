@@ -19,38 +19,36 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ### Added
 - `version.py` — single source of truth for version string
 - `docs/STATUS.md` — verified inventory of what is done vs planned
-- `notifier.py` — full Telegram notification layer replacing `alerts.py`
-  - 17 event types with `[ALERT ONLY]` / `[DRY RUN]` / `[LIVE]` mode tags
-  - Non-blocking background send queue with retry and 429 handling
-  - Per-day dedupe persisted across restarts (separate file per mode)
-  - Dual chat-ID support (`TELEGRAM_CHAT_ID_2`)
-  - `/status` command (read-only, responds only to configured chat ID)
-  - Auto-reply to any other incoming message
-  - `--test-telegram` CLI flag: sends sample of every event type
-  - `--simulate-trigger SYMBOL PCT` CLI flag (alert/dry modes only)
-- `ip_guard.py` — static IP check utilities (not yet integrated into live flow)
-- `START_BOT_ALERT.bat` — desktop launcher for alert-only mode
-- `tests/test_notifier.py` — 22 tests (token masking, dedupe, retries, mode tags)
-- `tests/test_mode.py` — 12 tests (mode system, CLI flags, config validation)
-- `tests/test_bot_guards.py` — 6 tests (IST timezone, holiday guard, open-price logic)
+- **Full notification system** (`notifier.py`) replacing `alerts.py`
+- `ip_guard.py` — static IP check, integrated into live mode
+- `groww_connector.py` — read-only Groww holdings connector with auto token refresh
+- `instrument_map.py` — Groww symbol → Angel token mapping with cache and overrides
+- `watchlist.py` — dynamic watchlist from Groww + Angel + cache + yaml overrides
+- `prices.py` — price provider with Angel primary, Groww fallback, cross-check
+- `portfolio.py` — unified portfolio model (qty, avg price, P&L per broker)
+- `sync.py` — sync scheduler for periodic holdings refresh
+- `signals.py` — BUY SIGNAL with full context (avg, new avg, P&L, weight, funds)
+- `reconcile.py` — purchase/sale detection from holdings diff
+- `profit_alerts.py` — sell/profit-booking alerts at configurable gain levels
+- `cli_tools.py` — `--check`, `--portfolio`, `--reconcile` CLI commands
+- `instrument_overrides.example.yaml`, `watchlist.example.yaml` — example configs
+- **204 tests** across 14 test files (all mocked, no real credentials)
 
 ### Changed
 - **Operating mode system**: `MODE` now accepts `alert_only` (default), `dry_run`, `live`
-  - Old value `dry` is now rejected with a clear error
-  - `alert_only` makes zero order API calls; sends BUY SIGNAL to Telegram instead
-  - `live` requires interactive `YES` confirmation or `--confirm-live` flag
-- **ETF symbols**: all five ETFs now use the correct Angel One `-EQ` suffix
-  - `ICICISILVER` → `SILVERIETF-EQ` (was wrong name entirely)
-  - `CPSEETF` → `CPSEETF-EQ`, `METALIETF` → `METALIETF-EQ` (missing suffix — caused "no price" bug)
-  - Tokens verified against `OpenAPIScripMaster.json`
-- `START_BOT_LIVE.bat` — now fails loudly if `MODE` in `.env` is not `live`
-- `start_bot_task.bat` — reads `MODE` from `.env`, launches correct mode
+- **ETF symbols**: all five ETFs now use correct Angel `-EQ` suffix
+  - `ICICISILVER` → `SILVERIETF-EQ` (wrong name entirely — correct is SILVERIETF)
+  - `CPSEETF` → `CPSEETF-EQ`, `METALIETF` → `METALIETF-EQ` (missing suffix = no price)
+- `connector.py`: LIMIT-only orders, static IP rejection detection
+- `START_BOT_LIVE.bat`: fails loud if MODE ≠ live in .env
+- `start_bot_task.bat`: reads MODE from .env automatically
+- CI: fixed `MODE=dry` → `MODE=alert_only`, added all dependencies
 
 ### Fixed
-- CPSEETF and METALIETF had no price data due to missing `-EQ` suffix
-- ICICISILVER was a non-existent symbol; correct symbol is `SILVERIETF-EQ`
-- `_parse_simulate_trigger` was unreachable dead code (merged inside another function); extracted correctly
-- CI workflow `.env` used `MODE=dry` which is now rejected by `config.py`
+- CPSEETF and METALIETF had no price — missing `-EQ` suffix
+- `notify_error` rate-limit used `time.monotonic()` with `0` default causing false rate-limit
+- `_parse_simulate_trigger` was dead code (merged inside another function)
+- Groww token expires daily at 6 AM — auto-refresh implemented
 
 ---
 
