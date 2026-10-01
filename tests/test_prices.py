@@ -117,15 +117,16 @@ def test_detect_groww_live_disabled_quietly():
 def test_mismatch_warning_sent_once(tmp_path):
     """Mismatch > 0.5% sends one warning, not repeated within 5 min."""
     notifier = MagicMock()
-    notifier._error_times = {}
 
     groww = _groww_with_ltp(105.0)   # 5% diff from Angel 100
     pp = PriceProvider(_angel(100.0, 98.0), groww_connector=groww, notifier=notifier)
     pp._groww_live_supported = True
+    pp._mismatch_warned = {}  # fresh state
 
     pp.get("CPSEETF-EQ", "2328")
     pp.invalidate("CPSEETF-EQ")
-    pp.get("CPSEETF-EQ", "2328")  # second call — should not warn again
+    # Second call within 5 min — should NOT warn again
+    pp.get("CPSEETF-EQ", "2328")
 
     assert notifier.notify_error.call_count == 1
 
