@@ -307,6 +307,7 @@ def test_daily_summary_no_trigger_message(tmp_path):
 
 def test_error_rate_limited(tmp_path):
     notifier = _make_notifier(tmp_path)
+    notifier._error_times = {}  # fresh state
     notifier.notify_error(E.LOGIN_FAILED, "bad credentials")
     notifier.notify_error(E.LOGIN_FAILED, "bad credentials")   # within 30 min
     assert len(notifier._sender.sent) == 1
@@ -314,6 +315,7 @@ def test_error_rate_limited(tmp_path):
 
 def test_different_error_types_not_rate_limited_together(tmp_path):
     notifier = _make_notifier(tmp_path)
+    notifier._error_times = {}  # fresh state
     notifier.notify_error(E.LOGIN_FAILED,      "error 1")
     notifier.notify_error(E.PRICE_FEED_FAILING, "error 2")
     assert len(notifier._sender.sent) == 2
