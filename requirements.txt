@@ -8,3 +8,4 @@ streamlit==1.28.0
 schedule==1.2.1
 loguru==0.7.2
 pytest==8.0.0
+growwapi==1.5.0
