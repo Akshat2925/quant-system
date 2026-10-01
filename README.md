@@ -1,170 +1,245 @@
-# 📈 ETF Trading Bot v2.0
+# ETF Trading Bot v2.0 🤖
 
-> Automatic ETF buying bot for Angel One — upgraded from a single-ETF bot to a smart multi-ETF system.
-
----
-
-## 🆕 What's New in v2.0
-
-This is a **complete upgrade** of the original [quant-system v1](https://github.com/Akshat2925/quant-system/tree/main) bot.
-
-### v1 → v2 Changes (Plain English)
-
-| What Changed | v1 (Old) | v2 (This) |
-|---|---|---|
-| **ETFs traded** | Only NIFTYBEES | 5 ETFs — Silver, Gold, Defence, CPSE, Metal |
-| **How money is split** | Fixed 33/33/34% tranches | Proportional — ETF that fell more gets more money |
-| **Budget system** | Capital % based | Monthly budget (default ₹1500/month) |
-| **NAV safety check** | Basic (1 level) | Full SEBI formula — 4 levels (Buy / Limit / Wait / Skip) |
-| **Silver ETF** | ❌ Not there | ✅ Special fixed ₹350 rule when it drops -6.5%+ |
-| **Market crash detector** | ❌ | ✅ Watches Nifty 50 for market-wide falls |
-| **Dashboard** | Very basic | Full Streamlit dashboard with budget progress |
-| **Backtest tool** | ❌ | ✅ Test strategy on historical CSV data |
-| **Crash recovery** | Bot would die silently | Atomic file writes + crash alerts on Telegram |
-| **Error handling** | Basic | Retry logic, safe error recovery, no silent failures |
-| **Telegram alerts** | Basic | Detailed — startup, crash, big moves, budget exhaustion |
-| **Config validation** | Scattered, no checks | Validates everything at startup, fails with clear error |
+> Automated ETF dip-buying and alert system for **Angel One (India)** using SmartAPI.
+> Watches 5 ETFs every 5 minutes during market hours and either sends a **BUY SIGNAL** on Telegram or places a real LIMIT order — depending on your chosen mode.
 
 ---
 
-## 💡 Why This Helps (For Regular Investors)
+## ⚠️ Important Disclaimers
 
-**The problem:** Manually buying ETFs during market dips means:
-- You have to watch the market all day
-- You might miss the dip while working/sleeping
-- Emotions make you hesitate when prices fall
-
-**What this bot does:**
-- Watches 5 ETFs automatically every 5 minutes from 9:15 AM to 3:30 PM
-- When an ETF drops past your set trigger (e.g. -2%), it buys automatically in the last 15 minutes of the day (3:00–3:15 PM)
-- Spreads your monthly budget smartly — the ETF that fell more gets a bigger share
-- Never buys when the ETF is trading at a premium over its actual NAV (so you don't overpay)
-- Sends you Telegram alerts for every action
-
-**Result:** You set it up once, and it automatically does SIP-style dip buying for you — without sitting in front of a screen.
+- This bot places **REAL orders with REAL money** in live mode.
+- Always run in `alert_only` mode first and verify signals before enabling live orders.
+- Past performance does not guarantee future results. Never invest more than you can afford to lose.
+- The NAV bands used are personal thresholds, not SEBI mandates.
 
 ---
 
-## 📦 ETFs Covered
+## Operating Modes
 
-| Symbol | ETF Name | Trigger |
-|---|---|---|
-| `ICICISILVER` | ICICI Prudential Silver ETF | -6.5% |
-| `SETFGOLD` | SBI Gold ETF | -2.0% |
-| `MODEFENCE` | Motilal Oswal Nifty India Defence ETF | -3.0% |
-| `CPSEETF` | CPSE ETF | -2.0% |
-| `METALIETF` | ICICI Prudential Nifty Metal ETF | -2.0% |
+| Mode | What happens | Orders placed? |
+|------|-------------|---------------|
+| `alert_only` | Computes signals, sends **BUY SIGNAL** on Telegram | ❌ Never |
+| `dry_run` | Full simulation with fake order IDs, separate state files | ❌ Never |
+| `live` | Real LIMIT orders on Angel One | ✅ Yes — real money |
 
----
+**Default is `alert_only`** — safe to run without risk.
 
-## 🛡️ Safety Features
-
-- ✅ **Once-per-day buy guard** — never double buys, even after a crash/restart
-- ✅ **Monthly budget cap** — hard stop, never overspends
-- ✅ **NAV premium check** — follows SEBI guidelines, won't buy overpriced ETFs
-- ✅ **Atomic file writes** — no data corruption even on power loss
-- ✅ **No order retry** — avoids accidental duplicate orders
-- ✅ **Dry run mode** — test everything without real money
-- ✅ **Telegram crash alerts** — know immediately if something goes wrong
+Set in `.env`:
+```
+MODE=alert_only    # default — recommended for testing
+MODE=dry_run       # simulate full flow
+MODE=live          # real orders (requires static IP + confirmation)
+```
 
 ---
 
-## ⚙️ Setup
+## ETFs Monitored
+
+| Angel Symbol | ETF Name | Trigger | Special Rule |
+|---|---|---|---|
+| `SILVERIETF-EQ` | ICICI Prudential Silver ETF | −6.5% | Fixed ₹350 allocation |
+| `SETFGOLD-EQ` | SBI Gold ETF | −2.0% | Proportional |
+| `MODEFENCE-EQ` | Motilal Oswal Nifty India Defence ETF | −3.0% | Proportional |
+| `CPSEETF-EQ` | CPSE ETF | −2.0% | Proportional |
+| `METALIETF-EQ` | ICICI Prudential Nifty Metal ETF | −2.0% | Proportional |
+
+> **Note:** Angel One NSE cash segment requires the `-EQ` suffix. Bare symbols like `CPSEETF` or `ICICISILVER` return no data from ltpData.
+
+---
+
+## Telegram Alerts
+
+Every significant event sends a Telegram message tagged `[ALERT ONLY]`, `[DRY RUN]`, or `[LIVE]`.
+
+| Event | When |
+|-------|------|
+| `BOT STARTED` | Startup — watchlist prices, budget status |
+| `HEARTBEAT` | 9:20 AM — bot is alive |
+| `TRIGGER HIT` | ETF crosses its dip threshold |
+| `TRIGGER ESCALATION` | Fall deepens by another 1% |
+| `TRIGGER RECOVERED` | ETF recovers before buy window |
+| `BUY WINDOW OPEN` | 3:00 PM — planned allocations |
+| `BUY SIGNAL` | alert_only: suggested qty, LIMIT price, amount |
+| `BUY SKIPPED` | Triggered ETF not bought + exact reason |
+| `ORDER FILLED` | live/dry_run: confirmed fill with avg price |
+| `ORDER REJECTED` | Broker rejected — budget NOT charged |
+| `BUDGET LOW` | < 20% monthly budget remaining |
+| `BUDGET EXHAUSTED` | Monthly budget fully used |
+| `DAILY SUMMARY` | 3:35 PM — full day recap |
+| Error events | Login fail, price feed down, state corrupt |
+
+**Commands (send from your configured chat):**
+- `/status` — current watchlist prices + budget
+
+Auto-reply to any other message: "This is a one-way alert bot."
+
+---
+
+## How Allocation Works
+
+**Monthly budget:** ₹1500 (configurable)
+**Daily cap:** 33% = max ₹495/day
+
+Example — 3 ETFs trigger on the same day:
+
+| ETF | Fall | Gets |
+|-----|------|------|
+| CPSEETF-EQ | −6% | ₹247 (50%) |
+| SETFGOLD-EQ | −4% | ₹165 (33%) |
+| METALIETF-EQ | −2% | ₹83 (17%) |
+
+Silver gets a fixed ₹350 when it falls ≥ 6.5%.
+
+---
+
+## Setup
 
 ### 1. Install requirements
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Create `.env` file
+### 2. Create `.env`
 ```bash
 copy .env.example .env
 ```
-Fill in your Angel One credentials:
+Fill in:
 ```
-ANGEL_API_KEY=your_api_key
-ANGEL_CLIENT_ID=your_client_id
-ANGEL_PIN=your_4digit_pin
-ANGEL_TOTP_SECRET=your_totp_secret
+ANGEL_API_KEY=your_key
+ANGEL_CLIENT_ID=A123456
+ANGEL_PIN=1234
+ANGEL_TOTP_SECRET=YOURBASE32SECRET
+
+MODE=alert_only
 MONTHLY_BUDGET=1500
+DAILY_CAP_PCT=0.33
+NAV_CHECK_MODE=advisory
+
+TELEGRAM_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
 ```
 
-### 3. Create logs folder
+### 3. Test connection
 ```bash
-mkdir logs
+python bot.py --test
+```
+
+### 4. Test Telegram
+```bash
+python bot.py --test-telegram
 ```
 
 ---
 
-## 🚀 How to Run
+## Running
 
 ```bash
-# Test connection only (safe)
-python bot.py --test
+# Safe — signals only, no orders (RECOMMENDED to start)
+python bot.py --alert-only
 
-# Dry run — simulates everything, no real orders
+# Simulate full flow, no real orders
 python bot.py --dry-run
 
-# Live trading — real orders, real money
-python bot.py
+# Live trading (real orders)
+# Must set MODE=live in .env first
+python bot.py --live
 
 # Dashboard
 streamlit run dashboard.py
-
-# Backtest on historical data
-python backtest.py your_data.csv
 ```
 
-Or just double-click the desktop shortcuts:
-- **`START_BOT_DRY.bat`** — dry run
-- **`START_BOT_LIVE.bat`** — live trading
+**Desktop shortcuts:**
+- `START_BOT_ALERT.bat` — alert_only (safe)
+- `START_BOT_DRY.bat` — dry run
+- `START_BOT_LIVE.bat` — live (fails if MODE≠live in .env)
 
 ---
 
-## 📊 How Allocation Works
+## Windows Task Scheduler
 
-**Monthly budget:** ₹1500 (configurable)
+```
+Trigger : Daily, weekdays, 09:10 AM
+Action  : python bot.py
+Start in: D:\etf-trading-bot
+Settings: Wake computer, don't start if already running
+```
 
-**Example — 3 ETFs trigger on the same day:**
-
-| ETF | Fall | Gets |
-|---|---|---|
-| CPSEETF | -6% | ₹750 (50%) |
-| SETFGOLD | -4% | ₹500 (33%) |
-| METALIETF | -2% | ₹250 (17%) |
-
-The bigger the dip, the more you buy — exactly how smart dip-buying should work.
+The bot exits automatically at **15:35 IST** after sending daily summary.
 
 ---
 
-## 📁 Project Structure
+## Safety Features
+
+- ✅ `alert_only` default — zero order API calls until you explicitly set `MODE=live`
+- ✅ Live mode requires interactive confirmation (`YES` typed) or `--confirm-live`
+- ✅ LIMIT orders only (no MARKET, no IOC) — Angel One algo rules
+- ✅ Once-per-symbol, once-per-day buy guard (survives crash + restart)
+- ✅ Daily spending cap (33% of monthly budget per day)
+- ✅ Monthly budget hard cap
+- ✅ Daily loss limit
+- ✅ NAV fail-safe (unavailable/stale NAV → WAIT, never blind-buy)
+- ✅ Order fill verification (only filled orders counted)
+- ✅ Atomic JSON state writes (no corruption on crash)
+- ✅ Separate dry/live state files
+- ✅ Auto re-login on session expiry
+- ✅ IST timezone, holiday + weekend guard
+- ✅ Token masked in all logs
+
+---
+
+## Project Status (Work in Progress)
+
+| Stage | Status | Description |
+|-------|--------|-------------|
+| Stage 0 | ✅ Done | Audit + symbol fix (`-EQ` suffix, `SILVERIETF`) |
+| Stage 1 | ✅ Done | MODE system (alert_only/dry_run/live) |
+| Stage 2 | 🔄 In progress | Static IP guard, LIMIT-only orders |
+| Stage 3 | ⏳ Planned | Groww connector (read-only holdings) |
+| Stage 4 | ⏳ Planned | Instrument matching (Groww ↔ Angel) |
+| Stage 5 | ⏳ Planned | Dynamic watchlist from real holdings |
+| Stage 6 | ⏳ Planned | Price provider with fallback |
+| Stage 7 | ⏳ Planned | Unified portfolio model |
+| Stage 8+ | ⏳ Planned | Signals, sell alerts, tools, docs |
+
+---
+
+## File Structure
 
 ```
 etf-trading-bot/
-├── bot.py              # Main bot — scheduling, trigger detection, buy window
-├── tranche_engine.py   # Budget allocation + state persistence
-├── nav_checker.py      # ETF list + SEBI NAV premium check
+├── bot.py              # Main bot — scheduling, signals, buy window
+├── tranche_engine.py   # Budget allocation, state, order management
+├── nav_checker.py      # ETF list (with correct -EQ symbols) + NAV check
 ├── connector.py        # Angel One SmartAPI wrapper
-├── config.py           # Config loader + validation
-├── alerts.py           # Telegram alerts
-├── market_detector.py  # Nifty 50 market-wide fall detector
+├── notifier.py         # Full Telegram notification system
+├── ip_guard.py         # Static IP verification for live mode
+├── config.py           # Config loader + NSE holiday list
+├── alerts.py           # Legacy alert wrapper (kept for compatibility)
+├── market_detector.py  # Nifty 50 market-wide fall alert
 ├── dashboard.py        # Streamlit status dashboard
-├── backtest.py         # Historical simulation tool
-├── find_tokens.py      # Utility to find Angel One symbol tokens
-└── tests/              # Unit tests (pytest)
+├── backtest.py         # Offline CSV-based simulation
+├── find_tokens.py      # Utility: find Angel One symbol tokens
+├── START_BOT_ALERT.bat # Desktop launcher — alert_only (safe)
+├── START_BOT_DRY.bat   # Desktop launcher — dry run
+├── START_BOT_LIVE.bat  # Desktop launcher — live (checks .env MODE)
+├── start_bot_task.bat  # Task Scheduler launcher
+└── tests/              # pytest suite (82 tests, all mocked)
 ```
 
 ---
 
-## ⚠️ Disclaimer
+## Running Tests
 
-This bot places **real orders with real money**. Always test with `--dry-run` first.
-Past performance of any strategy does not guarantee future results.
-Never invest more than you can afford to lose.
+```bash
+pytest tests/ -v
+```
+82 tests, 0 failures, no network or real credentials needed.
 
 ---
 
-## 🔗 Related
+## Security Notes
 
-- [v1 — Original quant-system](https://github.com/Akshat2925/quant-system) — the single-ETF NIFTYBEES bot this was built from
-- [Angel One SmartAPI Docs](https://smartapi.angelbroking.com/docs)
+- Never commit `.env` — it contains real credentials
+- Never share API keys, PIN, or TOTP secret
+- If any credential is exposed, rotate it immediately at Angel One
+- Telegram token is never logged (masked as `12345678…`)

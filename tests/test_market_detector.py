@@ -1,47 +1,70 @@
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+"""Tests for market_detector.py — no network calls."""
 
 from unittest.mock import MagicMock
+
 from market_detector import MarketFallDetector
 
 
-def _connector_with(ltp, candle_data=None, candle_raises=False):
-    conn = MagicMock()
-    conn.get_ltp.return_value = ltp
-    if candle_raises:
-        conn.smart.getCandleData.side_effect = Exception("API down")
+def _connector(ltp=None, open_=None):
+    c = MagicMock()
+    if ltp is None:
+        c.get_quote.return_value = (None, None)
     else:
-        conn.smart.getCandleData.return_value = candle_data or {"status": False, "data": []}
-    return conn
+        c.get_quote.return_value = (ltp, open_)
+    return c
 
 
-def test_trigger_level_3_on_major_fall():
-    detector = MarketFallDetector(trigger1=-2.0, trigger2=-4.0, trigger3=-6.0)
-    # open=100, ltp=93 -> -7%
-    candle_data = {"status": True, "data": [[None, 100.0]]}
-    conn = _connector_with(ltp=93.0, candle_data=candle_data)
-    status = detector.check(conn)
-    assert status.trigger_level == 3
-    assert status.should_buy is True
-    assert status.open_is_estimated is False
+def test_major_fall_triggers_level3():
+    det  = MarketFallDetector()
+    conn = _connector(ltp=21000.0, open_=22500.0)   # -6.67%
+    result = det.check(conn)
+    assert result.trigger_level == 3
+    assert result.should_buy is True
+    assert result.change_pct < -6.0
 
 
-def test_no_trigger_on_small_move():
-    candle_data = {"status": True, "data": [[None, 100.0]]}
-    conn = _connector_with(ltp=99.5, candle_data=candle_data)  # -0.5%
-    detector = MarketFallDetector()
-    status = detector.check(conn)
-    assert status.trigger_level == 0
-    assert status.should_buy is False
+def test_small_move_gives_level0():
+    det  = MarketFallDetector()
+    conn = _connector(ltp=22400.0, open_=22500.0)   # -0.44%
+    result = det.check(conn)
+    assert result.trigger_level == 0
+    assert result.should_buy is False
 
 
-def test_estimated_open_suppresses_buy_signal():
-    """Safety guard: if we can't get the real opening price and have to guess,
-    the bot should NOT authorize a real buy off that guess, even if the
-    estimated change looks like it crossed a trigger."""
-    conn = _connector_with(ltp=90.0, candle_raises=True)
-    detector = MarketFallDetector(trigger1=-2.0, trigger2=-4.0, trigger3=-6.0)
-    status = detector.check(conn)
-    assert status.open_is_estimated is True
-    assert status.should_buy is False  # suppressed despite the estimated fall
+def test_unavailable_quote_returns_safe_status():
+    """If get_quote returns (None, None), should_buy must be False."""
+    det    = MarketFallDetector()
+    conn   = _connector()   # returns (None, None)
+    result = det.check(conn)
+    assert result.should_buy is False
+    assert result.trigger_level == 0
+
+
+def test_accumulation_mode_after_n_down_days():
+    det = MarketFallDetector(acc_days=3)
+    for _ in range(3):
+        det.update_history(-1.5)
+    conn   = _connector(ltp=22300.0, open_=22500.0)   # -0.89%
+    result = det.check(conn)
+    assert result.accumulation is True
+
+
+def test_no_accumulation_with_mixed_history():
+    det = MarketFallDetector(acc_days=3)
+    det.update_history(-1.0)
+    det.update_history(+0.5)
+    det.update_history(-1.0)
+    conn   = _connector(ltp=22300.0, open_=22500.0)
+    result = det.check(conn)
+    assert result.accumulation is False
+
+
+def test_uses_get_quote_not_candle():
+    """Detector must call get_quote(), not smart.getCandleData()."""
+    det  = MarketFallDetector()
+    conn = MagicMock()
+    conn.get_quote.return_value = (22500.0, 22500.0)
+    det.check(conn)
+    conn.get_quote.assert_called_once()
+    # getCandleData should never be called
+    assert not hasattr(conn, "smart") or not conn.smart.getCandleData.called

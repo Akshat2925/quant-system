@@ -1,10 +1,16 @@
 # Secrets — NEVER commit these
 .env
 
-# Runtime state — contains your real trade history and amounts, not source code
+# Runtime state — live trading data
 tranche_state.json
 monthly_budget.json
-open_prices.json
+
+# Runtime state — dry-run (separate from live, still private)
+tranche_state.dry.json
+monthly_budget.dry.json
+
+# Corrupt state backups
+*.corrupt
 
 # Logs
 logs/
@@ -22,3 +28,7 @@ venv/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Angel instrument master (large file, re-downloaded at runtime)
+OpenAPIScripMaster.json
+tokens_cache.json

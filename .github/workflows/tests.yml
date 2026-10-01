@@ -7,17 +7,35 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          pip install pytest python-dotenv requests loguru
+          pip install pytest python-dotenv requests loguru pyotp zoneinfo \
+                      smartapi-python schedule
+
+      - name: Create minimal .env for tests
+        run: |
+          cat > .env <<'EOF'
+          ANGEL_API_KEY=test_key
+          ANGEL_CLIENT_ID=TEST001
+          ANGEL_PIN=1234
+          ANGEL_TOTP_SECRET=JBSWY3DPEHPK3PXP
+          MONTHLY_BUDGET=1500
+          DAILY_CAP_PCT=0.33
+          DAILY_LOSS_LIMIT=5000
+          NAV_CHECK_MODE=advisory
+          MODE=dry
+          TELEGRAM_TOKEN=
+          TELEGRAM_CHAT_ID=
+          EOF
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: pytest tests/ -v --tb=short

@@ -1,14 +1,11 @@
 @echo off
-title ETF Trading Bot - DRY RUN
-color 0A
+title ETF Bot - DRY RUN (simulated orders)
+color 0B
 echo ==========================================
-echo     ETF TRADING BOT - DRY RUN
+echo     ETF BOT - DRY RUN
+echo     Simulated orders, no real money
 echo ==========================================
 echo.
-echo Starting bot in DRY RUN mode (no real orders)...
-echo.
-echo Press Ctrl+C to stop the bot
-echo ==========================================
 cd /d "%~dp0"
 python bot.py --dry-run
 pause
