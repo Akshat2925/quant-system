@@ -12,6 +12,9 @@ monthly_budget.dry.json
 # Corrupt state backups
 *.corrupt
 
+# Notifier dedupe state
+notifier_dedupe*.json
+
 # Logs
 logs/
 *.log
