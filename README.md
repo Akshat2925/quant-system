@@ -1,245 +1,276 @@
-# ETF Trading Bot v2.0 🤖
+# ETF Trading Bot
 
-> Automated ETF dip-buying and alert system for **Angel One (India)** using SmartAPI.
-> Watches 5 ETFs every 5 minutes during market hours and either sends a **BUY SIGNAL** on Telegram or places a real LIMIT order — depending on your chosen mode.
+[![Tests](https://github.com/Akshat2925/quant-system/actions/workflows/tests.yml/badge.svg)](https://github.com/Akshat2925/quant-system/actions/workflows/tests.yml)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha-orange.svg)](CHANGELOG.md)
 
----
+An automated ETF monitoring and alert system for Indian markets, built on the **Angel One SmartAPI**.
 
-## ⚠️ Important Disclaimers
-
-- This bot places **REAL orders with REAL money** in live mode.
-- Always run in `alert_only` mode first and verify signals before enabling live orders.
-- Past performance does not guarantee future results. Never invest more than you can afford to lose.
-- The NAV bands used are personal thresholds, not SEBI mandates.
+> v3 is under active development. See [ROADMAP.md](ROADMAP.md) for what is coming next.
 
 ---
 
-## Operating Modes
+## In 60 seconds
 
-| Mode | What happens | Orders placed? |
-|------|-------------|---------------|
-| `alert_only` | Computes signals, sends **BUY SIGNAL** on Telegram | ❌ Never |
-| `dry_run` | Full simulation with fake order IDs, separate state files | ❌ Never |
-| `live` | Real LIMIT orders on Angel One | ✅ Yes — real money |
+**For recruiters**
+A personal finance automation project built in Python. Demonstrates API integration (Angel One SmartAPI), async/background processing, structured logging, atomic file I/O, a full pytest suite with mocked external services, and a modular architecture that separates data fetching, decision logic, alerting, and state management.
 
-**Default is `alert_only`** — safe to run without risk.
+**For investors / users**
+The bot watches a set of ETFs during NSE market hours. When an ETF's intraday price dips past a configurable threshold it sends a detailed Telegram alert — or, in live mode, places a limit buy order. It tracks a monthly budget, respects a daily spending cap, and verifies the NAV premium before every signal. Everything is configurable; nothing happens without your explicit setup.
 
-Set in `.env`:
-```
-MODE=alert_only    # default — recommended for testing
-MODE=dry_run       # simulate full flow
-MODE=live          # real orders (requires static IP + confirmation)
-```
+**For developers**
+FastAPI-style layered design: `connector.py` owns broker I/O, `tranche_engine.py` owns allocation math and state, `notifier.py` owns all Telegram output, and `bot.py` wires them together in a 5-minute polling loop. Three operating modes (`alert_only` / `dry_run` / `live`) share the same code path; the mode tag changes what happens at the buy step. 82 tests, all mocked, no real credentials needed.
 
 ---
 
-## ETFs Monitored
+## The problem and the idea
 
-| Angel Symbol | ETF Name | Trigger | Special Rule |
-|---|---|---|---|
-| `SILVERIETF-EQ` | ICICI Prudential Silver ETF | −6.5% | Fixed ₹350 allocation |
-| `SETFGOLD-EQ` | SBI Gold ETF | −2.0% | Proportional |
-| `MODEFENCE-EQ` | Motilal Oswal Nifty India Defence ETF | −3.0% | Proportional |
-| `CPSEETF-EQ` | CPSE ETF | −2.0% | Proportional |
-| `METALIETF-EQ` | ICICI Prudential Nifty Metal ETF | −2.0% | Proportional |
+Most retail investors miss intraday dips because they are busy. By the time they check their phone, the ETF has already recovered.
 
-> **Note:** Angel One NSE cash segment requires the `-EQ` suffix. Bare symbols like `CPSEETF` or `ICICISILVER` return no data from ltpData.
+Think of this bot as a watchful assistant: it keeps an eye on a list of ETFs all day, checks whether a dip looks like a genuine discount (not just noise), and either tells you immediately or acts on your behalf — whichever you prefer. It keeps a notebook of everything it did, and it never spends more than you told it to.
 
 ---
 
-## Telegram Alerts
+## How it works
 
-Every significant event sends a Telegram message tagged `[ALERT ONLY]`, `[DRY RUN]`, or `[LIVE]`.
-
-| Event | When |
-|-------|------|
-| `BOT STARTED` | Startup — watchlist prices, budget status |
-| `HEARTBEAT` | 9:20 AM — bot is alive |
-| `TRIGGER HIT` | ETF crosses its dip threshold |
-| `TRIGGER ESCALATION` | Fall deepens by another 1% |
-| `TRIGGER RECOVERED` | ETF recovers before buy window |
-| `BUY WINDOW OPEN` | 3:00 PM — planned allocations |
-| `BUY SIGNAL` | alert_only: suggested qty, LIMIT price, amount |
-| `BUY SKIPPED` | Triggered ETF not bought + exact reason |
-| `ORDER FILLED` | live/dry_run: confirmed fill with avg price |
-| `ORDER REJECTED` | Broker rejected — budget NOT charged |
-| `BUDGET LOW` | < 20% monthly budget remaining |
-| `BUDGET EXHAUSTED` | Monthly budget fully used |
-| `DAILY SUMMARY` | 3:35 PM — full day recap |
-| Error events | Login fail, price feed down, state corrupt |
-
-**Commands (send from your configured chat):**
-- `/status` — current watchlist prices + budget
-
-Auto-reply to any other message: "This is a one-way alert bot."
-
----
-
-## How Allocation Works
-
-**Monthly budget:** ₹1500 (configurable)
-**Daily cap:** 33% = max ₹495/day
-
-Example — 3 ETFs trigger on the same day:
-
-| ETF | Fall | Gets |
-|-----|------|------|
-| CPSEETF-EQ | −6% | ₹247 (50%) |
-| SETFGOLD-EQ | −4% | ₹165 (33%) |
-| METALIETF-EQ | −2% | ₹83 (17%) |
-
-Silver gets a fixed ₹350 when it falls ≥ 6.5%.
-
----
-
-## Setup
-
-### 1. Install requirements
-```bash
-pip install -r requirements.txt
+```
+1. WATCH   Every 5 minutes: fetch live price + day-open from Angel One
+2. DECIDE  Compare intraday change against each ETF's threshold
+3. CHECK   Verify NAV premium (declared NAV from mfapi.in)
+4. ALERT   Send a structured Telegram message with suggested action
+   or ACT   Place a LIMIT buy order (live mode only, with confirmation)
+5. RECORD  Save state atomically; update monthly and daily budgets
 ```
 
-### 2. Create `.env`
-```bash
-copy .env.example .env
-```
-Fill in:
-```
-ANGEL_API_KEY=your_key
-ANGEL_CLIENT_ID=A123456
-ANGEL_PIN=1234
-ANGEL_TOTP_SECRET=YOURBASE32SECRET
-
-MODE=alert_only
-MONTHLY_BUDGET=1500
-DAILY_CAP_PCT=0.33
-NAV_CHECK_MODE=advisory
-
-TELEGRAM_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
-```
-
-### 3. Test connection
-```bash
-python bot.py --test
-```
-
-### 4. Test Telegram
-```bash
-python bot.py --test-telegram
+```mermaid
+flowchart TD
+    A[Scheduler\n5-min cycle] --> B[Fetch prices\nAngel ltpData]
+    B --> C{Dip threshold\nmet?}
+    C -->|No| A
+    C -->|Yes| D[NAV premium\ncheck]
+    D -->|SKIP / WAIT| E[Send SKIPPED\nalert]
+    D -->|BUY / LIMIT| F{Mode?}
+    F -->|alert_only| G[Send BUY\nSIGNAL]
+    F -->|dry_run| H[Fake order\n+ Telegram]
+    F -->|live| I[LIMIT order\n→ Angel One]
+    I --> J[Poll fill\nstatus]
+    J --> K[Save state\natomically]
+    G & H & K --> A
 ```
 
 ---
 
-## Running
+## What it can do today
 
-```bash
-# Safe — signals only, no orders (RECOMMENDED to start)
-python bot.py --alert-only
-
-# Simulate full flow, no real orders
-python bot.py --dry-run
-
-# Live trading (real orders)
-# Must set MODE=live in .env first
-python bot.py --live
-
-# Dashboard
-streamlit run dashboard.py
-```
-
-**Desktop shortcuts:**
-- `START_BOT_ALERT.bat` — alert_only (safe)
-- `START_BOT_DRY.bat` — dry run
-- `START_BOT_LIVE.bat` — live (fails if MODE≠live in .env)
-
----
-
-## Windows Task Scheduler
-
-```
-Trigger : Daily, weekdays, 09:10 AM
-Action  : python bot.py
-Start in: D:\etf-trading-bot
-Settings: Wake computer, don't start if already running
-```
-
-The bot exits automatically at **15:35 IST** after sending daily summary.
+| Capability | Status |
+|---|---|
+| Intraday dip detection with configurable thresholds | ✅ Done |
+| Three operating modes: alert-only, dry-run, live | ✅ Done |
+| Structured Telegram alerts for every event | ✅ Done |
+| NAV premium check (advisory and strict) | ✅ Done |
+| Budget-aware proportional allocation | ✅ Done |
+| Daily spending cap and monthly budget rollover | ✅ Done |
+| Per-symbol once-per-day guard (crash-safe) | ✅ Done |
+| Atomic state files, corrupt-state detection | ✅ Done |
+| Order fill verification (live mode) | ✅ Done |
+| Session re-login on token expiry | ✅ Done |
+| IST timezone, NSE holiday guard | ✅ Done |
+| Streamlit dashboard | ✅ Done |
+| Static IP guard (code ready) | 🔄 Not yet integrated |
+| Dynamic watchlist from live holdings | ⏳ Stage 5 |
+| Groww connector (holdings source) | ⏳ Stage 3 |
+| Unified portfolio model with P&L | ⏳ Stage 7 |
+| Sell / profit-booking alerts | ⏳ Stage 11 |
 
 ---
 
-## Safety Features
+## Version history
 
-- ✅ `alert_only` default — zero order API calls until you explicitly set `MODE=live`
-- ✅ Live mode requires interactive confirmation (`YES` typed) or `--confirm-live`
-- ✅ LIMIT orders only (no MARKET, no IOC) — Angel One algo rules
-- ✅ Once-per-symbol, once-per-day buy guard (survives crash + restart)
-- ✅ Daily spending cap (33% of monthly budget per day)
-- ✅ Monthly budget hard cap
-- ✅ Daily loss limit
-- ✅ NAV fail-safe (unavailable/stale NAV → WAIT, never blind-buy)
-- ✅ Order fill verification (only filled orders counted)
-- ✅ Atomic JSON state writes (no corruption on crash)
-- ✅ Separate dry/live state files
-- ✅ Auto re-login on session expiry
-- ✅ IST timezone, holiday + weekend guard
-- ✅ Token masked in all logs
+| Version | Problem it solved | What was added |
+|---|---|---|
+| v1.0.0 | Manual buying missed intraday dips | Single ETF, tranche-based buying at fixed drops |
+| v2.0.0 | One ETF is not diversified; fixed tranches waste budget | 5 ETFs, proportional allocation, NAV check, full safety suite |
+| v3.0.0-alpha | Watchlist was hardcoded; no portfolio view; no holdings source | Operating mode system, Telegram overhaul, Groww integration (in progress) |
 
 ---
 
-## Project Status (Work in Progress)
+## Architecture
 
-| Stage | Status | Description |
-|-------|--------|-------------|
-| Stage 0 | ✅ Done | Audit + symbol fix (`-EQ` suffix, `SILVERIETF`) |
-| Stage 1 | ✅ Done | MODE system (alert_only/dry_run/live) |
-| Stage 2 | 🔄 In progress | Static IP guard, LIMIT-only orders |
-| Stage 3 | ⏳ Planned | Groww connector (read-only holdings) |
-| Stage 4 | ⏳ Planned | Instrument matching (Groww ↔ Angel) |
-| Stage 5 | ⏳ Planned | Dynamic watchlist from real holdings |
-| Stage 6 | ⏳ Planned | Price provider with fallback |
-| Stage 7 | ⏳ Planned | Unified portfolio model |
-| Stage 8+ | ⏳ Planned | Signals, sell alerts, tools, docs |
-
----
-
-## File Structure
-
-```
-etf-trading-bot/
-├── bot.py              # Main bot — scheduling, signals, buy window
-├── tranche_engine.py   # Budget allocation, state, order management
-├── nav_checker.py      # ETF list (with correct -EQ symbols) + NAV check
-├── connector.py        # Angel One SmartAPI wrapper
-├── notifier.py         # Full Telegram notification system
-├── ip_guard.py         # Static IP verification for live mode
-├── config.py           # Config loader + NSE holiday list
-├── alerts.py           # Legacy alert wrapper (kept for compatibility)
-├── market_detector.py  # Nifty 50 market-wide fall alert
-├── dashboard.py        # Streamlit status dashboard
-├── backtest.py         # Offline CSV-based simulation
-├── find_tokens.py      # Utility: find Angel One symbol tokens
-├── START_BOT_ALERT.bat # Desktop launcher — alert_only (safe)
-├── START_BOT_DRY.bat   # Desktop launcher — dry run
-├── START_BOT_LIVE.bat  # Desktop launcher — live (checks .env MODE)
-├── start_bot_task.bat  # Task Scheduler launcher
-└── tests/              # pytest suite (82 tests, all mocked)
+```mermaid
+graph TD
+    subgraph Data["Data Sources"]
+        A1[Angel One\nSmartAPI]
+        G1[Groww API\nplanned]
+    end
+    subgraph Core["Core"]
+        WL[Watchlist Builder\nplanned]
+        PP[Price Provider\nplanned]
+        DE[Decision Engine\ntranche_engine.py]
+        NC[NAV Checker\nnav_checker.py]
+    end
+    subgraph Output["Output"]
+        NT[Notifier\nnotifier.py]
+        ST[State Store\nJSON files]
+        DB[Dashboard\ndashboard.py]
+    end
+    A1 -->|prices, open| PP
+    G1 -->|holdings| WL
+    PP --> DE
+    WL --> DE
+    NC --> DE
+    DE --> NT
+    DE --> ST
+    ST --> DB
 ```
 
+| Module | Responsibility |
+|---|---|
+| `bot.py` | Polling loop, mode resolution, trigger detection, wiring |
+| `connector.py` | Angel One API: login, prices, funds, orders |
+| `tranche_engine.py` | Allocation math, budget accounting, state persistence |
+| `nav_checker.py` | ETF universe definition, NAV premium check |
+| `notifier.py` | All Telegram output: formatting, queue, dedupe, retry |
+| `ip_guard.py` | Public IP fetch and static IP verification |
+| `config.py` | Config loading and validation |
+| `dashboard.py` | Streamlit read-only status view |
+| `market_detector.py` | Nifty 50 market-wide fall alert |
+| `backtest.py` | Offline CSV-based simulation |
+
 ---
 
-## Running Tests
+## Safety by design
+
+- **`alert_only` is the default** — zero order API calls until you explicitly set `MODE=live`
+- **Live mode requires confirmation** — type `YES` or pass `--confirm-live`
+- **LIMIT orders only** — no MARKET, no IOC (NSE algo rules)
+- **No automatic order retry** — a lost response is logged and alerted, never retried
+- **State saved after every order** — a crash between two buys cannot cause a double-buy
+- **Corrupt state blocks live orders** — file backed up, bot refuses to trade until you fix it
+- **NAV fail-safe** — if the NAV feed is down or stale, action is WAIT not BUY
+- **Separate state for dry vs live** — a dry run can never pollute real budget figures
+- **Token masked in all logs** — secrets never appear in log files or Telegram messages
+
+---
+
+## Quality and testing
 
 ```bash
 pytest tests/ -v
+# 82 passed, 0 failed
 ```
-82 tests, 0 failures, no network or real credentials needed.
+
+Test coverage includes: correct open-price source when started mid-day, daily cap limiting spend across multiple dip days, state saved after each order with no re-buy after a crash, dry-run never touching live state, month rollover, rejected/unfilled orders not counted, stale NAV giving WAIT, weekend and holiday guard, Telegram failures never raising into the trading loop, token never in logs, mode tag in every message.
 
 ---
 
-## Security Notes
+## Example alert
 
-- Never commit `.env` — it contains real credentials
-- Never share API keys, PIN, or TOTP secret
-- If any credential is exposed, rotate it immediately at Angel One
-- Telegram token is never logged (masked as `12345678…`)
+```
+🎯 TRIGGER HIT  🧪 [DRY RUN]
+ETF-A
+Change:  -X.XX%  (trigger -X.X%)
+Price:   Rs.XXX.XX  |  Open: Rs.XXX.XX
+⏰ Buy window: 3:00–3:15 PM IST
+
+— values above are illustrative —
+```
+
+---
+
+## Quick start
+
+```bash
+# 1. Install
+pip install -r requirements.txt
+
+# 2. Configure
+copy .env.example .env
+# Fill in your Angel One credentials
+
+# 3. Verify connection
+python bot.py --test
+
+# 4. Test Telegram
+python bot.py --test-telegram
+
+# 5. Run in alert-only mode (safe — no orders)
+python bot.py --alert-only
+```
+
+Or double-click `START_BOT_ALERT.bat` on Windows.
+
+---
+
+## Configuration
+
+| Setting | Description | Default |
+|---|---|---|
+| `MODE` | `alert_only` / `dry_run` / `live` | `alert_only` |
+| `MONTHLY_BUDGET` | Total budget per calendar month | configurable |
+| `DAILY_CAP_PCT` | Max fraction of budget per day (0.05–1.0) | configurable |
+| `DAILY_LOSS_LIMIT` | Stop buying if daily spend exceeds this | configurable |
+| `NAV_CHECK_MODE` | `advisory` or `strict` | `advisory` |
+| `TELEGRAM_TOKEN` | Bot token from @BotFather | optional |
+| `TELEGRAM_CHAT_ID` | Your Telegram chat ID | optional |
+| `TELEGRAM_CHAT_ID_2` | Backup recipient | optional |
+| `REGISTERED_STATIC_IP` | For live order IP verification | optional |
+
+See `.env.example` for all keys.
+
+---
+
+## Compliance and limitations
+
+- India's NSE retail algo rules may require a registered static IP and limit-only orders for automated order placement. Alert-only and read-only tracking do not have this requirement.
+- Units bought via Angel One sit in the Angel demat account; units bought via Groww sit in the Groww demat account. A sell order must be placed at the broker holding those units.
+- NAV data comes from mfapi.in (end-of-day declared NAV), not a live iNAV feed. Small differences from the live premium are expected and documented.
+- Third-party API plans and terms can change. Verify current broker API availability before relying on this in production.
+
+**This project is not:** financial advice, a signal service, a guaranteed-return system, or a machine-learning model. It automates a personal investing workflow. Use it at your own risk.
+
+---
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) — Stages 0–16 toward v3.0.0.
+
+---
+
+## Tech stack
+
+Python 3.11 · Angel One SmartAPI · pyotp · loguru · schedule · requests · streamlit · pytest · zoneinfo
+
+---
+
+## Project structure
+
+```
+etf-trading-bot/
+├── bot.py                  # Main loop and wiring
+├── connector.py            # Angel One API wrapper
+├── tranche_engine.py       # Allocation engine and state
+├── nav_checker.py          # ETF universe and NAV check
+├── notifier.py             # Telegram notification layer
+├── ip_guard.py             # Static IP verification
+├── config.py               # Config loader
+├── dashboard.py            # Streamlit dashboard
+├── market_detector.py      # Nifty fall alert
+├── backtest.py             # CSV-based simulation
+├── version.py              # Version string
+├── docs/                   # Architecture, status, glossary
+├── tests/                  # 82 mocked tests
+└── .github/workflows/      # CI (pytest on every push)
+```
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+---
+
+## Disclaimer
+
+This is a personal educational project. It interacts with a real brokerage account and can place real orders in live mode. Nothing in this repository constitutes financial advice. Past performance does not guarantee future results. Use at your own risk.
