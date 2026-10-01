@@ -23,6 +23,7 @@ from loguru import logger
 from zoneinfo import ZoneInfo
 
 from version import __version__
+from ip_guard import check_ip
 
 from config import load_config, ConfigError
 from connector import AngelOneConnector
@@ -144,6 +145,19 @@ class TradingBot:
             return
 
         logger.success("✅ Connected to Angel One")
+
+        # ── IP check for live mode ────────────────────────────────────────
+        if self.mode == "live":
+            ip_result = check_ip(self.config.registered_static_ip)
+            if not ip_result.match:
+                logger.warning(f"⚠️ IP check: {ip_result.reason}")
+                self.notifier.notify_error(
+                    "IP_MISMATCH",
+                    f"IP check failed — falling back to alert_only.\n{ip_result.reason}"
+                )
+                logger.warning("⚠️ Switching to alert_only for this session")
+                self.mode = "alert_only"
+                self.engine._mode = "alert_only"
         self._send_startup_notification()
 
         schedule.every(5).minutes.do(self._safe_run)
@@ -225,15 +239,23 @@ class TradingBot:
         # ── Funds check ───────────────────────────────────────────────────
         funds = None
         if self.mode == "live":
-            funds = self.connector.get_funds()
-            if funds is None:
-                self._feed_fail_count += 1
-                if self._feed_fail_count >= FEED_FAIL_LIMIT:
-                    self.notifier.notify_error(
-                        E.PRICE_FEED_FAILING,
-                        f"get_funds() failed {self._feed_fail_count} consecutive cycles"
-                    )
-                logger.warning("⚠️ Cannot read available funds — will re-check next cycle")
+            # Stop if Angel already rejected for IP today
+            if getattr(self.connector, "_ip_rejected_today", False):
+                logger.warning("⚠️ Switching to alert_only — IP rejection detected")
+                self.mode = "alert_only"
+                self.engine._mode = "alert_only"
+                self.notifier.notify_error("IP_MISMATCH",
+                    "Switched to alert_only — Angel One rejected an order for IP/compliance.")
+            else:
+                funds = self.connector.get_funds()
+                if funds is None:
+                    self._feed_fail_count += 1
+                    if self._feed_fail_count >= FEED_FAIL_LIMIT:
+                        self.notifier.notify_error(
+                            E.PRICE_FEED_FAILING,
+                            f"get_funds() failed {self._feed_fail_count} consecutive cycles"
+                        )
+                    logger.warning("⚠️ Cannot read available funds — will re-check next cycle")
                 return
             logger.info(f"💵 Available funds: ₹{funds:,.2f}")
             self._feed_fail_count = 0

@@ -99,9 +99,13 @@ class Config:
     mode: str
 
     # ── Alerts (optional) ────────────────────────────────────────────────
-    telegram_token:    str
-    telegram_chat_id:  str
-    telegram_chat_id_2: str  # optional second recipient
+    telegram_token:     str
+    telegram_chat_id:   str
+    telegram_chat_id_2: str
+
+    # ── Static IP for live order verification (optional) ─────────────────
+    # Set to your registered static IP. Leave empty to skip IP check.
+    registered_static_ip: str = ""
 
     # ── Holiday set (injected from module-level NSE_HOLIDAYS) ────────────
     nse_holidays: frozenset = field(default_factory=frozenset)
@@ -129,9 +133,10 @@ def load_config() -> Config:
             daily_loss_limit =_optional_float("DAILY_LOSS_LIMIT", 5000.0, min_value=0),
             nav_check_mode   =nav_mode,
             mode             =mode_env,
-            telegram_token    =os.getenv("TELEGRAM_TOKEN",    "").strip(),
-            telegram_chat_id  =os.getenv("TELEGRAM_CHAT_ID",  "").strip(),
-            telegram_chat_id_2=os.getenv("TELEGRAM_CHAT_ID_2","").strip(),
+            telegram_token        =os.getenv("TELEGRAM_TOKEN",         "").strip(),
+            telegram_chat_id      =os.getenv("TELEGRAM_CHAT_ID",       "").strip(),
+            telegram_chat_id_2    =os.getenv("TELEGRAM_CHAT_ID_2",     "").strip(),
+            registered_static_ip  =os.getenv("REGISTERED_STATIC_IP",   "").strip(),
             nse_holidays      =NSE_HOLIDAYS,
         )
     except ConfigError as e:

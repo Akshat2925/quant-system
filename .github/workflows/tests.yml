@@ -32,7 +32,7 @@ jobs:
           DAILY_CAP_PCT=0.33
           DAILY_LOSS_LIMIT=5000
           NAV_CHECK_MODE=advisory
-          MODE=dry
+          MODE=alert_only
           TELEGRAM_TOKEN=
           TELEGRAM_CHAT_ID=
           EOF

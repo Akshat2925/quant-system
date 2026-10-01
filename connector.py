@@ -6,6 +6,7 @@ import time
 import pyotp
 from loguru import logger
 from SmartApi import SmartConnect
+from ip_guard import is_ip_rejection
 
 from config import Config
 
@@ -49,10 +50,11 @@ class AngelOneConnector:
     def __init__(self, config: Config):
         self.config          = config
         self.smart           = SmartConnect(api_key=config.angel_api_key)
-        self.refresh_token   = None
-        self._logged_in      = False
-        self._consec_failures = 0   # consecutive get_quote / get_ltp failures
+        self.refresh_token        = None
+        self._logged_in           = False
+        self._consec_failures     = 0
         self._MAX_FAIL_BEFORE_RELOGIN = 3
+        self._ip_rejected_today   = False  # set True if Angel rejects for IP/compliance
 
     # ── Auth ────────────────────────────────────────────────────────────
 
@@ -157,12 +159,22 @@ class AngelOneConnector:
 
     # ── Orders ───────────────────────────────────────────────────────────
 
-    def place_buy_order(self, symbol, token, quantity, price=None, exchange="NSE"):
-        """Place a buy order.
+    def place_buy_order(self, symbol, token, quantity, price: float,
+                        exchange="NSE"):
+        """Place a LIMIT buy order.
 
-        NEVER retried automatically — retrying an order placement risks a
-        duplicate buy if the first attempt succeeded but the response was lost.
+        Only LIMIT orders are supported (no MARKET, no IOC).
+        This is required by NSE retail algo rules and avoids slippage.
+
+        NEVER retried — a lost response could cause a duplicate buy.
+        price is REQUIRED; raises ValueError if not provided.
         """
+        if not price or price <= 0:
+            raise ValueError(
+                f"place_buy_order: price is required and must be > 0 "
+                f"(symbol={symbol}, got price={price!r}). "
+                "MARKET orders are not supported."
+            )
         try:
             params = {
                 "variety":         "NORMAL",
@@ -170,19 +182,26 @@ class AngelOneConnector:
                 "symboltoken":     token,
                 "transactiontype": "BUY",
                 "exchange":        exchange,
-                "ordertype":       "MARKET" if not price else "LIMIT",
+                "ordertype":       "LIMIT",
                 "producttype":     "DELIVERY",
                 "duration":        "DAY",
                 "quantity":        str(quantity),
+                "price":           str(round(price, 2)),
             }
-            if price:
-                params["price"] = str(round(price, 2))
             resp = self.smart.placeOrder(params)
             if resp and resp.get("status"):
                 oid = resp["data"]["orderid"]
-                logger.success(f"✅ BUY {symbol} x{quantity} | Order: {oid}")
+                logger.success(f"✅ BUY {symbol} x{quantity} LIMIT @ {price} | Order: {oid}")
                 return oid
-            logger.error(f"❌ Order failed: {resp.get('message') if resp else 'no response'}")
+            err_msg = resp.get("message", "") if resp else "no response"
+            logger.error(f"❌ Order failed: {err_msg}")
+            # Check for IP/compliance rejection
+            if is_ip_rejection(err_msg):
+                logger.error(
+                    "❌ Angel One rejected order — possible IP/compliance issue. "
+                    "Check that your IP is registered for algo trading."
+                )
+                self._ip_rejected_today = True
         except Exception as e:
             logger.error(f"❌ Order error placing {symbol} x{quantity}: {e}")
         return None
