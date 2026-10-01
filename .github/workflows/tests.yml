@@ -8,8 +8,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: quant-system
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: quant-system
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
