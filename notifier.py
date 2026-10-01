@@ -591,8 +591,8 @@ class Notifier:
     def notify_error(self, event_type: str, detail: str) -> None:
         """Rate-limited error notification (max once per 30 min per event_type)."""
         now = time.monotonic()
-        last = self._error_times.get(event_type, 0)
-        if now - last < _ERROR_RATELIMIT:
+        last = self._error_times.get(event_type, None)
+        if last is not None and now - last < _ERROR_RATELIMIT:
             logger.debug(f"🔕 Error rate-limit: {event_type} — not resending")
             return
         self._error_times[event_type] = now

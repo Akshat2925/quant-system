@@ -307,18 +307,23 @@ def test_daily_summary_no_trigger_message(tmp_path):
 
 def test_error_rate_limited(tmp_path):
     notifier = _make_notifier(tmp_path)
-    notifier._error_times = {}  # fresh state
+    notifier._error_times = {}  # guaranteed fresh — isolated from other tests
+    notifier._sender.sent.clear()
     notifier.notify_error(E.LOGIN_FAILED, "bad credentials")
+    first_count = len(notifier._sender.sent)
     notifier.notify_error(E.LOGIN_FAILED, "bad credentials")   # within 30 min
-    assert len(notifier._sender.sent) == 1
+    second_count = len(notifier._sender.sent)
+    assert first_count == 1, f"first call should send 1, got {first_count}"
+    assert second_count == 1, f"second call should be rate-limited, got {second_count}"
 
 
 def test_different_error_types_not_rate_limited_together(tmp_path):
     notifier = _make_notifier(tmp_path)
-    notifier._error_times = {}  # fresh state
-    notifier.notify_error(E.LOGIN_FAILED,      "error 1")
+    notifier._error_times = {}  # guaranteed fresh — isolated from other tests
+    notifier._sender.sent.clear()
+    notifier.notify_error(E.LOGIN_FAILED,       "error 1")
     notifier.notify_error(E.PRICE_FEED_FAILING, "error 2")
-    assert len(notifier._sender.sent) == 2
+    assert len(notifier._sender.sent) == 2,         f"two different error types should both send, got {len(notifier._sender.sent)}"
 
 
 # â”€â”€ Dry-run separation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
