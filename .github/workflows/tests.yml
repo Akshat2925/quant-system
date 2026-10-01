@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest python-dotenv requests loguru pyotp zoneinfo \
-                      smartapi-python schedule
+                      smartapi-python schedule growwapi
 
       - name: Create minimal .env for tests
         run: |
