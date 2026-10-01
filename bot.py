@@ -528,6 +528,9 @@ def _confirm_live_mode() -> bool:
         return True
     print("  Aborted. Change MODE=alert_only in .env for safe operation.")
     return False
+
+
+def _parse_simulate_trigger(argv: list[str]) -> dict[str, float]:
     """Parse --simulate-trigger SYMBOL PCT from argv."""
     triggers = {}
     i = 0
