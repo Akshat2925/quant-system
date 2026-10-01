@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest python-dotenv requests loguru pyotp \
-                      "smartapi-python==1.3.6" schedule growwapi
+                      "smartapi-python==1.3.6" schedule growwapi websocket-client
 
       - name: Create minimal .env for tests
         run: |
