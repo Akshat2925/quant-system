@@ -576,6 +576,51 @@ def main():
     except ConfigError:
         sys.exit(1)
 
+    # ── --version ─────────────────────────────────────────────────────────
+    if "--version" in sys.argv:
+        print(f"ETF Trading Bot {__version__}")
+        return
+
+    # ── --check ───────────────────────────────────────────────────────────
+    if "--check" in sys.argv:
+        from cli_tools import run_check
+        from groww_connector import GrowwConnector
+        angel = AngelOneConnector(config)
+        groww = None
+        if getattr(config, "groww_api_key", "") and getattr(config, "groww_api_secret", ""):
+            groww = GrowwConnector(config.groww_api_key, config.groww_api_secret)
+        ok = run_check(config, angel, groww)
+        sys.exit(0 if ok else 1)
+
+    # ── --portfolio ───────────────────────────────────────────────────────
+    if "--portfolio" in sys.argv:
+        from cli_tools import run_portfolio
+        from groww_connector import GrowwConnector
+        angel = AngelOneConnector(config)
+        angel.login()
+        groww = None
+        if getattr(config, "groww_api_key", "") and getattr(config, "groww_api_secret", ""):
+            groww = GrowwConnector(config.groww_api_key, config.groww_api_secret)
+            groww.login()
+        csv_out = "--csv" in sys.argv
+        run_portfolio(config, angel, groww, csv_output=csv_out)
+        angel.logout()
+        return
+
+    # ── --reconcile ───────────────────────────────────────────────────────
+    if "--reconcile" in sys.argv:
+        from cli_tools import run_reconcile
+        from groww_connector import GrowwConnector
+        angel = AngelOneConnector(config)
+        angel.login()
+        groww = None
+        if getattr(config, "groww_api_key", "") and getattr(config, "groww_api_secret", ""):
+            groww = GrowwConnector(config.groww_api_key, config.groww_api_secret)
+            groww.login()
+        run_reconcile(config, angel, groww)
+        angel.logout()
+        return
+
     # ── Resolve effective mode: CLI flags override .env ───────────────────
     if "--alert-only" in sys.argv:
         effective_mode = "alert_only"

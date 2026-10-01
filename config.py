@@ -102,10 +102,11 @@ class Config:
     telegram_token:     str
     telegram_chat_id:   str
     telegram_chat_id_2: str
-
-    # ── Static IP for live order verification (optional) ─────────────────
-    # Set to your registered static IP. Leave empty to skip IP check.
     registered_static_ip: str = ""
+
+    # ── Groww API (optional) ─────────────────────────────────────────────
+    groww_api_key:    str = ""
+    groww_api_secret: str = ""
 
     # ── Holiday set (injected from module-level NSE_HOLIDAYS) ────────────
     nse_holidays: frozenset = field(default_factory=frozenset)
@@ -137,6 +138,8 @@ def load_config() -> Config:
             telegram_chat_id      =os.getenv("TELEGRAM_CHAT_ID",       "").strip(),
             telegram_chat_id_2    =os.getenv("TELEGRAM_CHAT_ID_2",     "").strip(),
             registered_static_ip  =os.getenv("REGISTERED_STATIC_IP",   "").strip(),
+            groww_api_key         =os.getenv("GROWW_API_KEY",           "").strip(),
+            groww_api_secret      =os.getenv("GROWW_API_SECRET",        "").strip(),
             nse_holidays      =NSE_HOLIDAYS,
         )
     except ConfigError as e:
