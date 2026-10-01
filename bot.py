@@ -22,6 +22,8 @@ import schedule
 from loguru import logger
 from zoneinfo import ZoneInfo
 
+from version import __version__
+
 from config import load_config, ConfigError
 from connector import AngelOneConnector
 from nav_checker import ETF_LIST, NAVChecker
