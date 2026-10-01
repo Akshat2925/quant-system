@@ -1,0 +1,20 @@
+# watchlist.example.yaml
+# Copy to watchlist.yaml (gitignored).
+#
+# include: extra ETFs to watch even if not in holdings
+# exclude: ETFs to never track
+# overrides: per-symbol parameter overrides
+
+include:
+  - symbol: ETF-A        # bare symbol, resolved automatically
+    trigger_pct: -2.0    # optional override
+
+exclude:
+  - ETF-B                # never track this symbol
+
+overrides:
+  ETF-A:
+    trigger_pct: -2.5
+    max_premium: 0.3
+    enabled: true
+    notes: "Added manually — not in Groww holdings"
