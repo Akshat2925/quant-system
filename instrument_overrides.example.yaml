@@ -1,0 +1,15 @@
+# instrument_overrides.example.yaml
+# Use this to manually pin a Groww trading symbol to an Angel One instrument.
+# Copy to instrument_overrides.yaml (which is gitignored).
+#
+# Format:
+#   GROWW_SYMBOL:
+#     angel_symbol: ANGEL_SYMBOL-EQ
+#     token: "TOKEN_FROM_MASTER"
+#     exchange: NSE
+
+# Example (replace with real values):
+# ETF-A:
+#   angel_symbol: ETF-A-EQ
+#   token: "12345"
+#   exchange: NSE

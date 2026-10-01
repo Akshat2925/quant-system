@@ -32,6 +32,6 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Angel instrument master (large file, re-downloaded at runtime)
-OpenAPIScripMaster.json
-tokens_cache.json
+# Instrument mapping cache and private overrides
+instrument_map.json
+instrument_overrides.yaml
